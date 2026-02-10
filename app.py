@@ -1,48 +1,61 @@
 import streamlit as st
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import accuracy_score, confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-st.title("Titanic Survival Prediction")
+st.title("IMDB Sentiment Analysis")
 
-file = st.file_uploader("Upload Titanic CSV", type="csv")
+uploaded_file = st.file_uploader("Upload IMDB Dataset CSV", type="csv")
 
-if file is not None:
-    df = pd.read_csv(file)
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
 
-    df['Age'] = df['Age'].fillna(df['Age'].median())
-    df['Fare'] = df['Fare'].fillna(df['Fare'].median())
-    df.dropna(subset=['Embarked'], inplace=True)
+    # Convert sentiment labels
+    df['sentiment'] = df['sentiment'].map({'positive': 1, 'negative': 0})
 
-    df = pd.get_dummies(df, columns=['Sex', 'Embarked'], drop_first=True)
+    st.subheader("Dataset Preview")
+    st.dataframe(df.head())
 
-    features = [
-        'Pclass', 'Age', 'SibSp', 'Parch', 'Fare',
-        'Sex_male', 'Embarked_Q', 'Embarked_S'
-    ]
-
-    X = df[features]
-    y = df['Survived']
-
+    # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        df['review'], df['sentiment'], test_size=0.2, random_state=42
     )
 
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    # TF-IDF Vectorization
+    tfidf = TfidfVectorizer(stop_words='english', max_features=5000)
+    X_train_tfidf = tfidf.fit_transform(X_train)
+    X_test_tfidf = tfidf.transform(X_test)
 
-    model = LogisticRegression(max_iter=1000)
-    model.fit(X_train, y_train)
+    # Naive Bayes Model
+    nb = MultinomialNB()
+    nb.fit(X_train_tfidf, y_train)
 
-    y_pred = model.predict(X_test)
+    # Predictions
+    y_pred = nb.predict(X_test_tfidf)
 
-    st.write(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
+    st.write(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
 
+    # Confusion Matrix
     fig, ax = plt.subplots()
-    sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, cmap='Blues', ax=ax)
+    sns.heatmap(
+        confusion_matrix(y_test, y_pred),
+        annot=True,
+        fmt='d',
+        cmap='mako',
+        ax=ax
+    )
+    ax.set_title("Sentiment Analysis Confusion Matrix")
     st.pyplot(fig)
+
+    # User Review Prediction
+    st.subheader("Test Your Own Review")
+    user_review = st.text_input("Enter a movie review:")
+
+    if user_review:
+        vec = tfidf.transform([user_review])
+        prediction = nb.predict(vec)[0]
+        st.write("Sentiment:", "Positive 😊" if prediction == 1 else "Negative 😞")
