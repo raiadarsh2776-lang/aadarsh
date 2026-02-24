@@ -1,45 +1,46 @@
 import streamlit as st
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, confusion_matrix
-import seaborn as sns
+import numpy as np
 import matplotlib.pyplot as plt
-st.title("Titanic Survival Prediction")
-file = st.file_uploader("Upload Titanic CSV", type="csv")
+from sklearn.datasets import load_diabetes
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
 
-if file:
-    df = pd.read_csv(file)
-    df["Age"] = df["Age"].fillna(df["Age"].median())
-    df["Fare"] = df["Fare"].fillna(df["Fare"].median())
-    df = df.dropna(subset=["Embarked"])
-    df = pd.get_dummies(df, columns=["Sex", "Embarked"], drop_first=True)
-    features = [
-        "Pclass", "Age", "SibSp", "Parch", "Fare", 
-        "Sex_male", "Embarked_Q", "Embarked_S"
-    ]
-    if all(col in df.columns for col in features):
-        X = df[features]
-        y = df["Survived"]
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-        scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
-        model = LogisticRegression(max_iter=1000)
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        
-        st.subheader("Model Performance")
-        acc = accuracy_score(y_test, y_pred)
-        st.write(f"**Accuracy:** {acc:.2f}")
-        st.subheader("Confusion Matrix")
-        fig, ax = plt.subplots()
-        sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap="Blues", ax=ax)
-        plt.xlabel("Predicted")
-        plt.ylabel("Actual")
-        st.pyplot(fig)
-    else:
-        st.error("The uploaded CSV is missing required columns (Sex, Embarked, etc.)")
+st.title("Diabetes Progression Regression")
+
+diabetes = load_diabetes()
+
+X_train, X_test, y_train, y_test = train_test_split(
+    diabetes.data,
+    diabetes.target,
+    test_size=0.2,
+    random_state=42
+)
+
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+
+st.write(f"Mean Squared Error: {mean_squared_error(y_test, y_pred):.2f}")
+st.write(f"R-squared: {r2_score(y_test, y_pred):.2f}")
+
+fig, axs = plt.subplots(1, 2, figsize=(14, 6))
+
+axs[0].scatter(y_test, y_pred, alpha=0.5)
+axs[0].plot(
+    [y_test.min(), y_test.max()],
+    [y_test.min(), y_test.max()],
+    linestyle="--"
+)
+axs[0].set_title("True vs Predicted Values")
+axs[0].set_xlabel("True Values")
+axs[0].set_ylabel("Predicted Values")
+
+# Note: X_test[:, 2] typically represents the BMI feature in this dataset
+axs[1].scatter(X_test[:, 2], y_pred, alpha=0.7)
+axs[1].set_title("Feature (BMI) vs Predicted Values")
+axs[1].set_xlabel("BMI Feature")
+axs[1].set_ylabel("Predicted Progression")
+
+st.pyplot(fig)
